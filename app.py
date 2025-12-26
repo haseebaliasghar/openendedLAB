@@ -4,39 +4,40 @@ import numpy as np
 import pickle
 
 # ==========================================================
-# 1. PAGE CONFIG & STYLING
+# 1. PAGE CONFIG
 # ==========================================================
 st.set_page_config(
     page_title="Skyline Loan Portal",
     page_icon="🏙️",
-    layout="wide", # WIDE layout is better for single-page dashboards
+    layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for a professional "Fintech" look
+# ==========================================================
+# 2. ADAPTIVE CSS (THEME AGNOSTIC)
+# ==========================================================
+# We use CSS variables (var(--...)) so colors auto-flip based on theme
 st.markdown("""
     <style>
-    /* Force Light Mode Styles */
-    .stApp {
-        background-color: #f8fafc;
-        color: #0f172a;
-    }
-    
-    /* Input Fields */
-    .stTextInput input, .stNumberInput input, .stSelectbox div, .stRadio label {
-        color: #0f172a !important;
-        font-weight: 500;
+    /* Metric Cards - Adaptive Background */
+    div[data-testid="stMetric"] {
+        background-color: var(--secondary-background-color);
+        border: 1px solid var(--text-color);
+        padding: 15px;
+        border-radius: 10px;
+        /* Slight transparency for the border to make it subtle */
+        border-color: rgba(128, 128, 128, 0.2);
     }
 
-    /* Headlines */
+    /* Headlines - Use native text color */
     h1, h2, h3 {
-        color: #1e293b !important; 
+        color: var(--text-color) !important; 
     }
     
-    /* The Submit Button */
+    /* Submit Button - Standard Blue that looks good in both modes */
     .stButton>button {
         background-color: #2563eb;
-        color: white;
+        color: white !important; /* Always white text on blue button */
         font-size: 18px;
         padding: 10px;
         border-radius: 8px;
@@ -47,22 +48,18 @@ st.markdown("""
     }
     .stButton>button:hover {
         background-color: #1d4ed8;
-        box-shadow: 0 4px 12px rgba(37,99,235,0.2);
+        box-shadow: 0 4px 12px rgba(37,99,235,0.3);
     }
     
-    /* Metric Cards */
-    div[data-testid="stMetric"] {
-        background-color: white;
-        padding: 15px;
-        border-radius: 8px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    /* Remove top padding to make it look more like a dashboard */
+    div.block-container {
+        padding-top: 2rem;
     }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================================
-# 2. LOAD MODELS
+# 3. LOAD MODELS
 # ==========================================================
 @st.cache_resource
 def load_artifacts():
@@ -80,30 +77,26 @@ def load_artifacts():
 model, feature_encoders, target_encoder = load_artifacts()
 
 # ==========================================================
-# 3. SIDEBAR: SUMMARY & METRICS
+# 4. SIDEBAR: SUMMARY & METRICS
 # ==========================================================
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/2534/2534204.png", width=60)
-    st.title("Skyline Financial")
-    st.markdown("Fill out the form to check your eligibility instantly.")
+    st.title("🏙️ Skyline Financial")
+    st.markdown("Fill out the form to check loan eligibility instantly.")
     st.markdown("---")
     
-    # Placeholder for live metrics (will update as user types)
-    st.markdown("### 📊 Application Summary")
-    
-    # We will display these metrics using the variables defined in the main form
-    # Since Streamlit runs top-to-bottom, we usually define inputs first, 
-    # but to make the sidebar dynamic, we just let the main script run and 
-    # calculate metrics at the end or use session state.
-    # For simplicity in this layout, we will render the form first.
+    st.markdown("### 📊 Live Summary")
+    # These placeholders will be updated at the end of the script
+    # to reflect the user's current inputs
+    ratio_metric = st.empty()
+    assets_metric = st.empty()
 
 # ==========================================================
-# 4. MAIN FORM LAYOUT
+# 5. MAIN FORM LAYOUT
 # ==========================================================
-st.markdown("## 📋 Loan Application")
+st.markdown("## 📋 Loan Application Dashboard")
 
-# Create two main columns: Left for Inputs, Right for "Quick Stats"
-col_main, col_spacer = st.columns([1, 0.05]) # Just using main width
+# Create two main columns: Left for Inputs, Right for spacing
+col_main, col_spacer = st.columns([1, 0.01]) 
 
 with col_main:
     # --- SECTION A: CRITICAL FINANCIALS ---
@@ -111,7 +104,7 @@ with col_main:
         st.subheader("💰 Financial Request")
         c1, c2, c3 = st.columns(3)
         with c1:
-            income = st.number_input("Annual Income ($)", value=5000000, step=100000, help="Your total yearly income")
+            income = st.number_input("Annual Income ($)", value=5000000, step=100000, help="Total yearly income")
         with c2:
             loan_amount = st.number_input("Loan Amount Required ($)", value=10000000, step=100000)
         with c3:
@@ -131,29 +124,27 @@ with col_main:
             # Employment
             emp_display = ["Salaried / Other", "Self-Employed"]
             employed = st.selectbox("Employment Type", emp_display)
-            # Map back to model expected values (0/1 logic)
-            # Logic: If index 0 selected -> "No", if index 1 -> "Yes"
+            # Logic: Self-Employed -> Yes/No mapping
             is_self_employed_val = "Yes" if employed == "Self-Employed" else "No"
         with c3:
-            dependents = st.slider("Dependents", 0, 5, 2, help="Number of people financially dependent on you")
+            dependents = st.slider("Dependents", 0, 5, 2, help="Number of financial dependents")
 
-        # CIBIL Score needs prominence
         st.markdown("<br>", unsafe_allow_html=True)
+        # CIBIL Score Slider
         cibil = st.slider("Credit Score (CIBIL)", 300, 900, 750, help="Higher is better")
         
-        # CIBIL Color Indicator
+        # Dynamic CIBIL Feedback
         if cibil < 550:
-            st.caption("🔴 Poor Credit")
+            st.caption("🔴 :red[Poor Credit Score]")
         elif cibil < 700:
-            st.caption("🟡 Average Credit")
+            st.caption("🟡 :orange[Average Credit Score]")
         else:
-            st.caption("🟢 Good Credit")
+            st.caption("🟢 :green[Good Credit Score]")
 
     st.markdown("---")
 
     # --- SECTION C: ASSETS (COLLAPSIBLE) ---
-    # We hide this in an expander because it takes up a lot of space
-    with st.expander("➕ Assets & Collateral Information (Click to Expand)", expanded=False):
+    with st.expander("➕ Assets & Collateral (Click to Expand)", expanded=False):
         st.info("Enter the value of assets you currently own. Enter 0 if not applicable.")
         ac1, ac2 = st.columns(2)
         with ac1:
@@ -164,29 +155,27 @@ with col_main:
             bank_assets = st.number_input("Bank Asset Value ($)", value=0, step=50000)
 
 # ==========================================================
-# 5. REAL-TIME METRICS (IN SIDEBAR)
+# 6. UPDATE SIDEBAR METRICS
 # ==========================================================
-# Now that variables exist, we update sidebar
-with st.sidebar:
-    # Simple logic to show a ratio
-    ratio = loan_amount / (income + 1) # Avoid div by zero
-    st.metric("Loan-to-Income Ratio", f"{ratio:.1f}x", delta="Lower is better" if ratio > 5 else None, delta_color="inverse")
-    
-    total_assets = residential + commercial + luxury + bank_assets
-    st.metric("Total Reported Assets", f"${total_assets:,.0f}")
+# We calculate these now that the inputs are defined
+ratio = loan_amount / (income + 1) # Avoid div by zero
+total_assets = residential + commercial + luxury + bank_assets
 
+# Update the placeholders we created earlier
+ratio_metric.metric("Loan-to-Income Ratio", f"{ratio:.1f}x", delta="Lower is better" if ratio > 5 else None, delta_color="inverse")
+assets_metric.metric("Total Reported Assets", f"${total_assets:,.0f}")
+
+with st.sidebar:
     st.markdown("---")
-    # THE BIG BUTTON
     submit_btn = st.button("🚀 Check Eligibility Now")
 
 # ==========================================================
-# 6. PREDICTION LOGIC
+# 7. PREDICTION LOGIC
 # ==========================================================
 if submit_btn:
     if model is None:
-        st.error("Error: Model files not found.")
+        st.error("⚠️ Error: Model files not found. Please upload .pkl files.")
     else:
-        # Create a container for the result to make it pop
         result_container = st.container()
         
         with st.spinner("Analyzing Financial Profile..."):
@@ -206,8 +195,7 @@ if submit_btn:
             })
 
             try:
-                # Encode Strings
-                # Note: We use .strip() to ensure no whitespace issues
+                # Encode Strings (with strip() for safety)
                 col_edu = input_data['education'].str.strip()
                 col_emp = input_data['self_employed'].str.strip()
                 
@@ -221,31 +209,33 @@ if submit_btn:
                 confidence = np.max(prob) * 100
 
                 # --- DISPLAY RESULT ---
+                # We use hardcoded colors for the result box text/bg so they 
+                # ALWAYS look like this (Green/Red) regardless of theme.
                 with result_container:
                     if status.strip() == "Approved":
+                        st.balloons()
                         st.markdown("""
-                            <div style="background-color: #dcfce7; border: 2px solid #22c55e; border-radius: 10px; padding: 20px; text-align: center; margin-top: 20px;">
+                            <div style="background-color: #dcfce7; border: 2px solid #22c55e; border-radius: 10px; padding: 20px; text-align: center; margin-top: 10px; margin-bottom: 20px;">
                                 <h1 style="color: #15803d; margin: 0;">🎉 LOAN APPROVED</h1>
-                                <p style="color: #166534; font-size: 18px;">Based on the details provided, you are eligible for this loan.</p>
+                                <p style="color: #166534; font-size: 18px; margin-top: 5px;">You are eligible for this loan.</p>
                             </div>
                         """, unsafe_allow_html=True)
-                        st.balloons()
                     else:
                         st.markdown("""
-                            <div style="background-color: #fee2e2; border: 2px solid #ef4444; border-radius: 10px; padding: 20px; text-align: center; margin-top: 20px;">
+                            <div style="background-color: #fee2e2; border: 2px solid #ef4444; border-radius: 10px; padding: 20px; text-align: center; margin-top: 10px; margin-bottom: 20px;">
                                 <h1 style="color: #991b1b; margin: 0;">❌ LOAN REJECTED</h1>
-                                <p style="color: #7f1d1d; font-size: 18px;">We are unable to approve this application at this time.</p>
+                                <p style="color: #7f1d1d; font-size: 18px; margin-top: 5px;">We cannot approve this application.</p>
                             </div>
                         """, unsafe_allow_html=True)
                     
-                    # Show detailed breakdown in an expander below result
+                    # Analysis Details
                     with st.expander("View Analysis Details"):
-                        st.write(f"**AI Confidence:** {confidence:.1f}%")
+                        st.write(f"**AI Confidence Score:** {confidence:.1f}%")
                         if cibil < 500:
-                            st.write("- **Critical Factor:** Your CIBIL score is very low.")
+                            st.write("⚠️ **Critical Factor:** Low CIBIL score.")
                         if ratio > 8:
-                            st.write("- **Critical Factor:** Loan amount is too high compared to income.")
+                            st.write("⚠️ **Critical Factor:** High Loan-to-Income ratio.")
 
             except Exception as e:
                 st.error(f"Prediction Error: {e}")
-                st.info("Ensure your model .pkl files match the input format.")
+                st.info("Ensure your training data matches the input format.")
