@@ -4,85 +4,155 @@ import pickle
 import numpy as np
 
 # -------------------------------
-# App config
+# Page config
 # -------------------------------
 st.set_page_config(
-    page_title="Loan Approval Prediction",
+    page_title="Loan Approval Predictor",
     page_icon="🏦",
     layout="centered"
 )
 
-st.title("🏦 Loan Approval Prediction")
-st.write("Predict whether a loan application will be **Approved** or **Rejected** using a Random Forest model.")
+st.title("🏦 Loan Approval Predictor")
+st.caption("Simple, fast, and human-friendly loan eligibility check")
 
 # -------------------------------
-# Load model & encoders
+# Load artifacts
 # -------------------------------
 @st.cache_resource
 def load_artifacts():
     with open("random_forest_model.pkl", "rb") as f:
         model = pickle.load(f)
-
     with open("feature_encoders.pkl", "rb") as f:
         feature_encoders = pickle.load(f)
-
     with open("target_encoder.pkl", "rb") as f:
         target_encoder = pickle.load(f)
-
     return model, feature_encoders, target_encoder
 
 
 model, feature_encoders, target_encoder = load_artifacts()
 
+# Helper
+def encode(col, val):
+    return feature_encoders[col].transform([val])[0]
+
 # -------------------------------
-# User input form
+# UI SECTIONS
 # -------------------------------
-st.subheader("📋 Enter Applicant Details")
 
-input_data = {}
+st.header("👤 Applicant Profile")
 
-with st.form("loan_form"):
-    for feature in model.feature_names_in_:
-        if feature in feature_encoders:
-            # Categorical feature
-            encoder = feature_encoders[feature]
-            options = list(encoder.classes_)
-            value = st.selectbox(feature.replace("_", " ").title(), options)
-            input_data[feature] = value
-        else:
-            # Numerical feature
-            value = st.number_input(
-                feature.replace("_", " ").title(),
-                min_value=0.0,
-                step=1.0
-            )
-            input_data[feature] = value
+col1, col2 = st.columns(2)
 
-    submitted = st.form_submit_button("🔮 Predict Loan Status")
+with col1:
+    gender = st.radio("Gender", ["Male", "Female"])
+    married = st.radio("Marital Status", ["Yes", "No"])
+
+with col2:
+    dependents = st.slider("Number of Dependents", 0, 5, 1)
+    education = st.radio("Education Level", ["Graduate", "Not Graduate"])
+
+st.divider()
+
+st.header("💼 Employment & Income")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    self_employed = st.radio("Self Employed?", ["Yes", "No"])
+    applicant_income = st.slider(
+        "Applicant Monthly Income",
+        min_value=0,
+        max_value=100000,
+        value=5000,
+        step=500
+    )
+
+with col2:
+    coapplicant_income = st.slider(
+        "Co-Applicant Monthly Income",
+        min_value=0,
+        max_value=100000,
+        value=0,
+        step=500
+    )
+
+st.divider()
+
+st.header("🏠 Loan Details")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    loan_amount = st.slider(
+        "Loan Amount (in thousands)",
+        min_value=10,
+        max_value=700,
+        value=150,
+        step=10
+    )
+
+    loan_term = st.radio(
+        "Loan Term (months)",
+        [360, 180, 120, 60]
+    )
+
+with col2:
+    credit_history = st.radio(
+        "Credit History",
+        ["Good (No defaults)", "Bad / Unknown"]
+    )
+
+    property_area = st.radio(
+        "Property Location",
+        ["Urban", "Semiurban", "Rural"]
+    )
+
+st.divider()
+
+# -------------------------------
+# Prepare input
+# -------------------------------
+input_dict = {
+    "Gender": gender,
+    "Married": married,
+    "Dependents": dependents,
+    "Education": education,
+    "Self_Employed": self_employed,
+    "ApplicantIncome": applicant_income,
+    "CoapplicantIncome": coapplicant_income,
+    "LoanAmount": loan_amount,
+    "Loan_Amount_Term": loan_term,
+    "Credit_History": 1 if credit_history.startswith("Good") else 0,
+    "Property_Area": property_area,
+}
+
+# Convert to DataFrame
+input_df = pd.DataFrame([input_dict])
+
+# Encode categoricals
+for col in feature_encoders:
+    input_df[col] = feature_encoders[col].transform(input_df[col])
+
+# Ensure correct column order
+input_df = input_df[model.feature_names_in_]
 
 # -------------------------------
 # Prediction
 # -------------------------------
-if submitted:
-    input_df = pd.DataFrame([input_data])
+st.header("📊 Result")
 
-    # Encode categorical features
-    for col, encoder in feature_encoders.items():
-        input_df[col] = encoder.transform(input_df[col])
+if st.button("🔮 Check Loan Eligibility", use_container_width=True):
+    pred_encoded = model.predict(input_df)[0]
+    pred_label = target_encoder.inverse_transform([pred_encoded])[0]
 
-    # Predict
-    prediction_encoded = model.predict(input_df)[0]
-    prediction_label = target_encoder.inverse_transform([prediction_encoded])[0]
+    proba = model.predict_proba(input_df)[0]
+    confidence = np.max(proba)
 
-    probabilities = model.predict_proba(input_df)[0]
-    confidence = np.max(probabilities)
-
-    # Display result
-    st.subheader("📊 Prediction Result")
-
-    if prediction_label.lower() == "approved":
-        st.success(f"✅ Loan Approved")
+    if pred_label.lower() == "approved":
+        st.success("✅ **Loan Approved**")
     else:
-        st.error(f"❌ Loan Rejected")
+        st.error("❌ **Loan Rejected**")
 
-    st.write(f"**Confidence:** {confidence:.2%}")
+    st.metric("Confidence", f"{confidence:.1%}")
+
+    st.caption("This prediction is generated by a machine learning model and should not be considered financial advice.")
