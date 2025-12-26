@@ -3,17 +3,9 @@ import pandas as pd
 import pickle
 import numpy as np
 
-# -------------------------------
-# Page config
-# -------------------------------
-st.set_page_config(
-    page_title="Loan Approval Predictor",
-    page_icon="🏦",
-    layout="centered"
-)
-
+st.set_page_config(page_title="Loan Approval Predictor", page_icon="🏦", layout="centered")
 st.title("🏦 Loan Approval Predictor")
-st.caption("Simple, fast, and human-friendly loan eligibility check")
+st.caption("Friendly loan eligibility check")
 
 # -------------------------------
 # Load model & encoders
@@ -31,92 +23,77 @@ def load_artifacts():
 model, feature_encoders, target_encoder = load_artifacts()
 
 # -------------------------------
-# Helper functions
+# Helper
 # -------------------------------
 def encode_input(df):
-    """Encode all categorical features using the saved encoders"""
     for col, encoder in feature_encoders.items():
         if col in df.columns:
             df[col] = encoder.transform(df[col])
     return df
 
 # -------------------------------
-# UI Sections
+# UI
 # -------------------------------
-st.header("👤 Applicant Profile")
+st.header("👤 Applicant Info")
 
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 with col1:
-    gender = st.radio("Gender", ["Male", "Female"])
-    married = st.radio("Marital Status", ["Yes", "No"])
-with col2:
-    dependents = st.selectbox("Number of Dependents", ["0", "1", "2", "3+"])
+    no_of_dependents = st.selectbox("Number of Dependents", ["0", "1", "2", "3", "4", "5+"])
     education = st.radio("Education Level", ["Graduate", "Not Graduate"])
-
-st.divider()
-
-st.header("💼 Employment & Income")
-col1, col2 = st.columns(2)
-with col1:
+with col2:
     self_employed = st.radio("Self Employed?", ["Yes", "No"])
-    applicant_income = st.slider("Applicant Monthly Income", 0, 100000, 5000, step=500)
-with col2:
-    coapplicant_income = st.slider("Co-Applicant Monthly Income", 0, 100000, 0, step=500)
+with col3:
+    income_annum = st.slider("Income (per annum)", 0, 10000000, 5000000, step=50000)
 
 st.divider()
+st.header("🏠 Loan & Assets")
 
-st.header("🏠 Loan Details")
 col1, col2 = st.columns(2)
 with col1:
-    loan_amount = st.slider("Loan Amount (in thousands)", 10, 700, 150, step=10)
-    loan_term = st.selectbox("Loan Term (months)", ["360", "180", "120", "60"])
+    loan_amount = st.slider("Loan Amount", 0, 50000000, 20000000, step=1000000)
+    loan_term = st.slider("Loan Term (months)", 1, 60, 12)
+    cibil_score = st.slider("CIBIL Score", 0, 900, 700)
 with col2:
-    credit_history = st.radio("Credit History", ["Good", "Bad"])
-    property_area = st.radio("Property Location", ["Urban", "Semiurban", "Rural"])
-
-st.divider()
+    residential_assets_value = st.slider("Residential Assets", 0, 50000000, 5000000, step=1000000)
+    commercial_assets_value = st.slider("Commercial Assets", 0, 50000000, 5000000, step=1000000)
+    luxury_assets_value = st.slider("Luxury Assets", 0, 50000000, 5000000, step=1000000)
+    bank_asset_value = st.slider("Bank Assets", 0, 50000000, 5000000, step=1000000)
 
 # -------------------------------
-# Prepare input DataFrame
+# Prepare DataFrame
 # -------------------------------
 input_dict = {
-    "Gender": gender,
-    "Married": married,
-    "Dependents": dependents,
-    "Education": education,
-    "Self_Employed": self_employed,
-    "ApplicantIncome": applicant_income,
-    "CoapplicantIncome": coapplicant_income,
-    "LoanAmount": loan_amount,
-    "Loan_Amount_Term": loan_term,
-    "Credit_History": credit_history,
-    "Property_Area": property_area,
+    "no_of_dependents": no_of_dependents,
+    "education": education,
+    "self_employed": self_employed,
+    "income_annum": income_annum,
+    "loan_amount": loan_amount,
+    "loan_term": loan_term,
+    "cibil_score": cibil_score,
+    "residential_assets_value": residential_assets_value,
+    "commercial_assets_value": commercial_assets_value,
+    "luxury_assets_value": luxury_assets_value,
+    "bank_asset_value": bank_asset_value
 }
 
 input_df = pd.DataFrame([input_dict])
-
-# Encode categorical features
 input_df = encode_input(input_df)
-
-# Ensure correct column order
 input_df = input_df[model.feature_names_in_]
 
 # -------------------------------
-# Prediction
+# Predict
 # -------------------------------
-st.header("📊 Result")
-
-if st.button("🔮 Check Loan Eligibility", use_container_width=True):
+st.header("📊 Prediction")
+if st.button("🔮 Check Loan Eligibility"):
     pred_encoded = model.predict(input_df)[0]
     pred_label = target_encoder.inverse_transform([pred_encoded])[0]
-
     proba = model.predict_proba(input_df)[0]
     confidence = np.max(proba)
 
     if pred_label.lower() == "approved":
-        st.success("✅ **Loan Approved**")
+        st.success("✅ Loan Approved")
     else:
-        st.error("❌ **Loan Rejected**")
+        st.error("❌ Loan Rejected")
 
     st.metric("Confidence", f"{confidence:.1%}")
-    st.caption("This prediction is generated by a machine learning model and should not be considered financial advice.")
+    st.caption("This prediction is generated by a machine learning model and is not financial advice.")
